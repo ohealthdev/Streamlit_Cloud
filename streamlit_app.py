@@ -1,10 +1,9 @@
 """
 streamlit_app.py — Bodhan Hindi ASR front-end
 Deploy to Streamlit Cloud.
-Set ASR_SERVER_URL in st.secrets (the Cloudflare tunnel URL).
+Set ASR_SERVER_URL in st.secrets.
 """
 
-import io
 import httpx
 import streamlit as st
 
@@ -45,51 +44,57 @@ def show_results(result: dict):
     english = result.get("english_translation", "N/A")
     st.text_area("english_out", english, height=120, label_visibility="collapsed")
 
+def handle_error(e: Exception):
+    if isinstance(e, httpx.HTTPStatusError):
+        st.error(f"Server error {e.response.status_code}: {e.response.text}")
+    elif isinstance(e, httpx.ConnectError):
+        st.error(f"Could not connect to {ASR_URL} — is the tunnel running?")
+    else:
+        st.error(f"Error: {e}")
+
 # ── UI ────────────────────────────────────────────────────────────────────────
 st.title("🎙️ Bodhan Hindi ASR")
 st.caption("Upload or record Hindi audio → Hindi transcript + English translation")
 
 tab_upload, tab_record = st.tabs(["📁 Upload audio", "🎤 Record"])
 
-# Upload tab
+# ── Upload tab ────────────────────────────────────────────────────────────────
 with tab_upload:
     uploaded = st.file_uploader(
         "Choose an audio file",
         type=["wav", "mp3", "flac", "ogg", "m4a"],
     )
     if uploaded:
-        st.audio(uploaded)
+        # Read bytes once, reuse for both playback and server call
+        audio_bytes = uploaded.read()
+        st.audio(audio_bytes, format=uploaded.type or "audio/wav")
+
         if st.button("Transcribe", key="btn_upload"):
             with st.spinner("Sending to ASR server…"):
                 try:
-                    result = send_to_server(uploaded.read(), uploaded.name)
+                    result = send_to_server(audio_bytes, uploaded.name)
                     show_results(result)
-                except httpx.HTTPStatusError as e:
-                    st.error(f"Server error {e.response.status_code}: {e.response.text}")
-                except httpx.ConnectError:
-                    st.error(f"Could not connect to server at {ASR_URL}. Is the tunnel running?")
                 except Exception as e:
-                    st.error(f"Error: {e}")
+                    handle_error(e)
 
-# Record tab
+# ── Record tab ────────────────────────────────────────────────────────────────
 with tab_record:
     st.info("Click **Start recording**, speak, then **Stop** and hit **Transcribe**.")
     audio_data = st.audio_input("Record audio", key="recorder")
     if audio_data:
-        st.audio(audio_data)
+        # Read bytes once, reuse for both playback and server call
+        recorded_bytes = audio_data.read()
+        st.audio(recorded_bytes, format="audio/wav")
+
         if st.button("Transcribe", key="btn_record"):
             with st.spinner("Sending to ASR server…"):
                 try:
-                    result = send_to_server(audio_data.read(), "recording.wav")
+                    result = send_to_server(recorded_bytes, "recording.wav")
                     show_results(result)
-                except httpx.HTTPStatusError as e:
-                    st.error(f"Server error {e.response.status_code}: {e.response.text}")
-                except httpx.ConnectError:
-                    st.error(f"Could not connect to server at {ASR_URL}. Is the tunnel running?")
                 except Exception as e:
-                    st.error(f"Error: {e}")
+                    handle_error(e)
 
-# Sidebar
+# ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.header("About")
     st.markdown("""
