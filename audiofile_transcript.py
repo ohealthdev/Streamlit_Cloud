@@ -162,23 +162,18 @@ if st.session_state.file_list:
 
             left, right = st.columns(2)
 
+            native_label = native_key.replace("_", " ").title() if native_key else "Native Transcription"
+
             with left:
-                label = native_key.replace("_", " ").title() if native_key else "Native Transcription"
                 if native:
-                    st.subheader(f"🗣️ {label}")
+                    st.subheader(f"🗣️ {native_label}")
                     st.text_area(
-                        label,
+                        native_label,
                         value=native,
                         height=200,
                         key=f"native_ta_{fname}",
                         label_visibility="collapsed",
                     )
-                    if st.button(f"📋 Copy", key=f"copy_native_{fname}"):
-                        st.components.v1.html(
-                            f"<script>navigator.clipboard.writeText({json.dumps(native)})</script>",
-                            height=0,
-                        )
-                        st.toast("✅ Native text copied!")
                 else:
                     st.info("No native-language transcription in response.")
 
@@ -192,14 +187,25 @@ if st.session_state.file_list:
                         key=f"eng_ta_{fname}",
                         label_visibility="collapsed",
                     )
-                    if st.button(f"📋 Copy", key=f"copy_eng_{fname}"):
-                        st.components.v1.html(
-                            f"<script>navigator.clipboard.writeText({json.dumps(english)})</script>",
-                            height=0,
-                        )
-                        st.toast("✅ English translation copied!")
                 else:
                     st.info("No English translation in response.")
+
+            # ── Single combined copy button ──
+            if native or english:
+                combined = ""
+                if native:
+                    combined += f"{native_label}:\n{native}"
+                if native and english:
+                    combined += "\n\n"
+                if english:
+                    combined += f"English Translation:\n{english}"
+
+                if st.button("📋 Copy Both", key=f"copy_both_{fname}", type="primary"):
+                    st.components.v1.html(
+                        f"<script>navigator.clipboard.writeText({json.dumps(combined)})</script>",
+                        height=0,
+                    )
+                    st.toast("✅ Both transcriptions copied!")
 
             # ── Raw JSON toggle ──
             with st.expander("🔍 Raw API response"):
